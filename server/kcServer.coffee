@@ -27,6 +27,7 @@ Options =
 
 userRegistry = []
 groupRegistry = []
+messageRegistry = []
 loggedUsers = []
 hostBlacklist = JSON.parse Modules.fs.readFileSync ResourceDir + "blacklist.json"
 
@@ -38,14 +39,20 @@ UserPowerLevels =
 	admin: 50
 	owner: 2000
 
-class User
-	constructor: (@id, @powerLevel, @auth) ->
+class KcIdentifier
+	constructor: (@id) ->
+		
+class User extends KcIdentifier
+	constructor: (id, @powerLevel, @auth) ->
+		super id
 		@connection = null
 		@cipher = Modules.aes.createCipher @auth
 
 	isQualifiedFor: (powerLevel) -> powerLevel <= @powerLevel
 	toString: () -> "[User id=#{@id} powerLevel=#{@powerLevel}]"
-	onConnect: (webSocketConnection) -> @connection = webSocketConnection
+	onConnect: (webSocketConnection) -> 
+		@connection = webSocketConnection
+		loggedUsers.push this
 	onDisconnect: () -> @connection = null if @connection?
 	authenticate: (pwd) -> Modules.sha pwd is @auth
 
@@ -60,19 +67,16 @@ class User
 		powerLevel: @powerLevel
 		auth: @auth
 
-class Group
-	constructor: (@id, member, passphrase) ->
-		@members = member or []
+class Group extends KcIdentifier
+	constructor: (id, @members = [], passphrase) ->
+		super id
 		@passphrase = if passphrase? \
 			then passphrase else \
 			(String.fromCharCode(Math.floor(Math.random() * \
-			(Options.phRand[1] - Options.phRand[0])) + Options.phRand[0]) for _ in [0..Options.phLength]).join ''
+			(Options.phRand[1] - Options.phRand[0])) + Options.phRand[0]) for _ in [1..Options.phLength]).join ''
 
-	addUser: (user) ->
-		@members.push user
-		loggedUsers.push @id
-
-	removeUser: (user) -> @members.push user
+	addUser: (user) -> @members.push user
+	removeUser: (user) -> @members.pop user
 	toString: () -> "[Group id=#{@id} length-of-members=#{@members.length}]"
 
 	send: (msg) ->
@@ -83,7 +87,7 @@ class Group
 		id: @id
 		passphrase: @passphrase
 		members: x.id for x in @members
-
+			
 # Set up common functions
 getUserById = (id) ->
 	for user in userRegistry
@@ -93,24 +97,66 @@ getGroupById = (id) ->
 	for group in groupRegistry
 		return group if group.id is id
 
+class Message extends KcIdentifier
+	DIRECT_MESSAGE: 0
+	GROUP_MESSAGE: 1
+	
+	constructor: (@type, @sourceId, @destId, @message, @read = no) ->
+		if not (@type in [@DIRECT_MESSAGE..@GROUP_MESSAGE])
+			throw Error "Unknown message type: #{@type}"
+		@id = (String.fromCharCode(Math.floor(Math.random() * \
+			(Options.phRand[1] - Options.phRand[0])) + Options.phRand[0]) for _ in [0..19]).join ''
+	
+	toJSON: () ->
+		type: @type
+		sourceId: @sourceId
+		destId: @destId
+		message: @message
+		read: @read
+
+
 User.fromJSON = (jsonExpression) -> new User(jsonExpression.id, jsonExpression.powerLevel, jsonExpression.auth)
 Group.fromJSON = (jsonExpression) -> new Group(jsonExpression.id, getUserById userExp for userExp in jsonExpression.members, jsonExpression.passphrase)
+Message.fromJSON = (je) -> new Message je.type, je.sourceId, je.destId, je.message, je.read
 
-# Set up variables
+# Set up variables and functions that use the defined classes
 userRegistry.push User.fromJSON json for json in JSON.parse Modules.fs.readFileSync ResourceDir + "users.json"
 groupRegistry.push Group.fromJSON json for json in JSON.parse Modules.fs.readFileSync ResourceDir + "groups.json"
-
+messageRegistry.push Message.fromJSON json for json in JSON.parse Modules.fs.readFileSync ResourceDir + "messages.json"
 
 containsUser = (id) -> (getUserById id)?
 containsGroup = (id) -> (getGroupById id)?
+messagesFrom = (id) -> (msg for msg in messageRegistry when msg.sourceId is id)
+messagesToUser = (id) -> (msg for msg in messageRegistry when msg.type is Message.DIRECT_MESSAGE and msg.destId is id)
+groupIDs = () -> (group.id for group in groupRegistry)
+userIDs = () -> (user.id for group in groupRegistry)
+User::unreadMessages = () -> (msg for msg in messagesToUser @id when not msg.read)
+User::sentMessages = () -> messagesFrom @id
+User::onRead = (message) -> (message.read = yes) if message.type is Message.DIRECT_MESSAGE and message.destId is @id and not message.read
+User::sendMessage = (destId, message, type) -> messageRegistry.push new Message type, @id, destId, message
+User::tell = (data) -> @connection.send data
+Group::getMessages = () -> (msg for msg in messageRegistry when msg.type is Message.GROUP_MESSAGE and msg.destId is @id)
 
 # Event handler modules
 eventHandlers = [
 	{
-		expectedType: "dm"
-		expectedArgs: ["dest"]
+		expectedType: "msg"
+		expectedArgs: ["dest", "message", "toUser"]
 		onMessage: (msg, source) ->
-
+			return "failure: target user or group does not exist" if (msg.toUser and not containsUser msg.dest) or (not msg.toUser and not containsGroup msg.dest)
+			source.sendMessage msg.dest, msg.message, if msg.toUser then Message.DIRECT_MESSAGE else Message.GROUP_MESSAGE
+			return true
+	}
+	{
+		expectedType: "listUsers"
+		expectedArgs: []
+		onMessage: (msg, source) ->
+			return userIDs().join ", "
+	}
+	{
+		expectedType: "read"
+		expectedArgs: ["id"]
+		# todo
 	}
 ]
 setupHandlersForUser = (conn, id) ->
