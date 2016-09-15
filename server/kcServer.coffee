@@ -8,6 +8,7 @@ Modules =
 	wss: require('websocket').server
 	sha: require('sha1')
 	aes: require('aes256')
+	readline: require('readline')
 
 # Initialize modules
 WebServer = https.createServer
@@ -81,14 +82,7 @@ class Group
 	toJSON: () ->
 		id: @id
 		passphrase: @passphrase
-		members: x.toJSON() for x in @members
-
-User.fromJSON = (jsonExpression) -> new User(jsonExpression.id, jsonExpression.powerLevel, jsonExpression.auth)
-Group.fromJSON = (jsonExpression) -> new Group(jsonExpression.id, User.fromJSON userExp for userExp in jsonExpression.members, jsonExpression.passphrase)
-
-# Set up variables
-userRegistry.push User.fromJSON json for json in JSON.parse Modules.fs.readFileSync ResourceDir + "users.json"
-groupRegistry.push Group.fromJSON json for json in JSON.parse Modules.fs.readFileSync ResourceDir + "groups.json"
+		members: x.id for x in @members
 
 # Set up common functions
 getUserById = (id) ->
@@ -99,6 +93,14 @@ getGroupById = (id) ->
 	for group in groupRegistry
 		return group if group.id is id
 
+User.fromJSON = (jsonExpression) -> new User(jsonExpression.id, jsonExpression.powerLevel, jsonExpression.auth)
+Group.fromJSON = (jsonExpression) -> new Group(jsonExpression.id, getUserById userExp for userExp in jsonExpression.members, jsonExpression.passphrase)
+
+# Set up variables
+userRegistry.push User.fromJSON json for json in JSON.parse Modules.fs.readFileSync ResourceDir + "users.json"
+groupRegistry.push Group.fromJSON json for json in JSON.parse Modules.fs.readFileSync ResourceDir + "groups.json"
+
+
 containsUser = (id) -> (getUserById id)?
 containsGroup = (id) -> (getGroupById id)?
 
@@ -106,11 +108,13 @@ containsGroup = (id) -> (getGroupById id)?
 eventHandlers = [
 	{
 		expectedType: "dm"
+		expectedArgs: ["dest"]
 		onMessage: (msg, source) ->
 
 	}
 ]
-setupHandlersForUser
+setupHandlersForUser = (conn, id) ->
+
 
 # Login procedure
 WSServer.on 'request', (req) ->
