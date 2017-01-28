@@ -1,18 +1,21 @@
-//    Copyright 2017 LiquidOxygen
+// Copyright (C) 2017  LiquidOxygen
 // 
-//    Licensed under the Apache License, Version 2.0 (the "License");
-//    you may not use this file except in compliance with the License.
-//    You may obtain a copy of the License at
+// This file is part of KentChat.
 // 
-//        http://www.apache.org/licenses/LICENSE-2.0
+// KentChat is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
 // 
-//    Unless required by applicable law or agreed to in writing, software
-//    distributed under the License is distributed on an "AS IS" BASIS,
-//    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-//    See the License for the specific language governing permissions and
-//    limitations under the License.
+// KentChat is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+// 
+// You should have received a copy of the GNU General Public License
+// along with KentChat.  If not, see <http://www.gnu.org/licenses/>.
+// 
 
-// This file is part of KentChat
 // File description: Object models for KentChat server
 
 /// <reference path="typings/index.d.ts" />
@@ -47,10 +50,10 @@ export class User {
     }
 
     rawSend(data: any) {
-        Logger.into(`[${this.toString()}]::rawSend`);
+        Logger.into(`[${this}].rawSend`);
         if (this.connection.readyState === WebSocket.WebSocket.OPEN) {
             this.connection.send(data, err => {
-                Logger.log('error', '')
+                Logger.log('error', `Error while sending to connection; Stack:\n${err.stack}`);
             });
         }
     }
