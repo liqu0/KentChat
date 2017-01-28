@@ -12,12 +12,12 @@
 
 ## Synopsis
 
-One of KentChat's top goals is to provide an instant messaging experience that puts an emphasis on the user's privacy. To make this possible, the KentChat protocol is encrypted using RSA, and account credentials are hashed using SHA-3. The usage of these algorithms is documented below.
+One of KentChat's top goals is to provide an instant messaging experience that puts an emphasis on the user's privacy. To make this possible, the KentChat protocol is encrypted using RSA, and account credentials are hashed using BLAKE2. The usage of these algorithms is documented below.
 
 ## Systems Used
 
 - [RSA](https://en.wikipedia.org/wiki/RSA_%28cryptosystem%29)
-- [SHA-3](https://en.wikipedia.org/wiki/SHA-3)
+- [BLAKE2](https://en.wikipedia.org/wiki/BLAKE2)
 - [AES](https://en.wikipedia.org/wiki/Advanced_Encryption_Standard)
 
 ## Procedures Taken
@@ -28,25 +28,25 @@ One of KentChat's top goals is to provide an instant messaging experience that p
 
 1. Server generates itself a public and private key for RSA encryption
 
-#### Send encrypted message to client
+#### <a name="server-msg-to-client" /> Send encrypted message to client
 
-1. Generate a key for AES
-2. Sign plain-text message with private key
+1. Generate a random key for AES
+2. Sign the BLAKE2 hash of the plain-text message with private key
 3. Encrypt plain-text message with AES using generated AES key
 4. Encrypt AES key using client's public key
 5. Send a packet of encrypted (with AES) message, encrypted AES key, and signature to client
 
-#### Receive encrypted message from client
+#### <a name="server-msg-from-client" /> Receive encrypted message from client
 
 1. Separate received packet into message, key, and signature
 2. Decrypt the AES key using the client's private key
 3. Decrypt the message using the AES key
-4. Validate the signature with the server's public key and the decrypted message
+4. Validate the signature with the server's public key and the BLAKE2 hash of the decrypted message
 
 #### As client connects
 
 1. Server receives public key from client
-2. Server responds with its generated public key
+2. Server responds with its public key
 3. Client generates a key for future AES encryption and sends it to server, encrypted with server's public key and signed with client's private key
 4. Server decrypts the message and evaluates the signature, aborting the connection if it's invalid; Otherwise server initiates the first standard encrypted message by encrypting `helo` with its received AES key, and signing `helo`'s SHA3-256 hash with server's private key. Server then sends the encrypted content together with the signature to client
 5. Client decrypts and evaluates server's packet, aborting the connection if signature is invalid; Otherwise client bounces the decrypted message back to server, encrypting it with the AES key and signing its SHA3-256 hash with client's private key (client sends the encrypted content and signature in the same manner as server)
@@ -72,5 +72,5 @@ At this point, the server's packets to the client contain two parts: The first p
 
 A private message packet consists of three parts:
 1. The message itself, encrypted with AES using a predetermined key
-2. The signature, generated from the sender's private key and the message itself as plain text. Must be validated by the recipient
+2. The signature, generated from the sender's private key and the message's BLAKE2 hashsum. Must be validated by the recipient
 3. The predetermined AES key, encrypted with the recipient's public key and only decrypt-able by the recipient

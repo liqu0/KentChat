@@ -11,18 +11,17 @@
 //    WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 //    See the License for the specific language governing permissions and
 //    limitations under the License.
-"use strict";
 // This file is part of KentChat
 // File description: Logging support for KentChat server
 /// <reference path="typings/index.d.ts" />
-var Colors = require("colors");
-var formatTime = require("strftime");
+import * as Colors from 'colors';
+import * as formatTime from 'strftime';
 /**
  * Logger
  *
  * A static logger implementation
  */
-var Logger;
+export var Logger;
 (function (Logger) {
     /**
      * Format of the logger's output. The following lists the interpolations available here:
@@ -31,15 +30,15 @@ var Logger;
      * - {date}: The date (and possibly time) when this log message is printed. This interpolation is replaced with the result of `strftime` with `timeFormat` set as the desired format for the interpolated value.
      * - {message}: The message that the logging source intends to print.
      */
-    var format = '[ {date} @ {level} ] {enclosures}: {message}';
+    let format = '[ {date} @ {level} ] {enclosures}: {message}';
     /**
      * Format for `strftime` to use while generating interpolation replacement for `format`.
      */
-    var timeFormat = '%m-%d %H:%M:%S';
+    let timeFormat = '%m-%d %H:%M:%S';
     /**
      * List of enclosures that KentChat server is currently in
      */
-    var enclosureList = [];
+    let enclosureList = [];
     /**
      * Describes the levels of this logger. Example:
      * `{
@@ -49,51 +48,51 @@ var Logger;
      *    "fatal": {display: "⛔", colors: [Colors.white, Colors.bgRed]}
      * }`
      */
-    var levels = {
+    let levels = {
         'info': { color: Colors.reset },
         'warn': { color: Colors.yellow },
         'error': { color: Colors.red },
-        'fatal': { color: Colors.black.bgRed }
+        'fatal': { color: Colors.black.bgRed },
     };
     /**
      * Provides the loglevel display packs; Most are emoji-based.
      */
-    var levelDisplays = {
+    let levelDisplays = {
         'normal': {
             'info': 'ℹ️️',
             'warn': '⚠️️',
             'error': '❌',
-            'fatal': '⛔'
+            'fatal': '⛔',
         },
         'hand': {
             'info': '👌',
             'warn': '👉',
             'error': '👎',
-            'fatal': '🖕'
+            'fatal': '🖕',
         },
         'face': {
             'info': '🙂',
             'warn': '😲',
             'error': '😡',
-            'fatal': '😵'
+            'fatal': '😵',
         },
         'weather': {
             'info': '☀️',
             'warn': '🌧',
             'error': '🌩',
-            'fatal': '⚡️'
+            'fatal': '⚡️',
         },
         'random': {
             'info': '✔',
             'warn': '❗️',
             'error': '💔',
-            'fatal': '☠️'
+            'fatal': '☠️',
         },
         'text': {
             'info': 'INFO',
             'warn': 'WARN',
             'error': 'ERROR',
-            'fatal': '!FATAL!'
+            'fatal': '!FATAL!',
         }
     };
     /**
@@ -102,9 +101,9 @@ var Logger;
      * Example: `interpolate("Hello, {name}!", {name: "Marcus"})` returns `"Hello, Marcus!"`
      */
     function interpolate(src, vals) {
-        var output = src;
-        for (var label in vals) {
-            output = output.replace("{" + label + "}", vals[label]);
+        let output = src;
+        for (let label in vals) {
+            output = output.replace(`{${label}}`, vals[label]);
         }
         return output;
     }
@@ -113,17 +112,16 @@ var Logger;
      *
      * All other components of KentChat server should use this function for logging.
      */
-    function log(level, message, displayStyle) {
-        if (displayStyle === void 0) { displayStyle = 'normal'; }
+    function log(level, message, displayStyle = 'normal') {
         // We strive to keep this part dynamic, otherwise we'll need to edit both `levels` and the overloading of `log(..)` in order to add new levels.
         if (!(level in levels)) {
-            throw new Error("Logger.log has encountered an unknown level: " + level);
+            throw new Error(`Logger.log has encountered an unknown level: ${level}`);
         }
         console.log(levels[level].color(interpolate(format, {
             'level': levelDisplays[displayStyle][level],
             'enclosures': enclosureList.join(': '),
             'date': formatTime(timeFormat),
-            'message': message
+            'message': message,
         })));
     }
     Logger.log = log;
@@ -133,10 +131,9 @@ var Logger;
      * Meant to be called from an error handler
      */
     function fail(err, info) {
-        log('error', 'An error occurred in KentChat server' + (info ? ": " + info : ''));
+        log('error', 'An error occurred in KentChat server' + (info ? `: ${info}` : ''));
         into('Logger.fail');
-        for (var _i = 0, _a = err.stack.split('\n'); _i < _a.length; _i++) {
-            var line = _a[_i];
+        for (let line of err.stack.split('\n')) {
             log('error', line);
         }
         outOf();
@@ -149,11 +146,11 @@ var Logger;
      */
     function into(newEnclosure) {
         if (enclosureList.includes(newEnclosure)) {
-            log('warn', "Logger.into has detected that newEnclosure (" + newEnclosure + ") already exists in `enclosureList`");
+            log('warn', `Logger.into has detected that newEnclosure (${newEnclosure}) already exists in \`enclosureList\``);
             return false;
         }
         if (newEnclosure.trim().length === 0) {
-            log('warn', "Logger.into has detected that newEnclosure (" + newEnclosure + ") is empty after trimmed");
+            log('warn', `Logger.into has detected that newEnclosure (${newEnclosure}) is empty after trimmed`);
             return false;
         }
         enclosureList.push(newEnclosure);
@@ -173,4 +170,4 @@ var Logger;
         return enclosureList.pop();
     }
     Logger.outOf = outOf;
-})(Logger = exports.Logger || (exports.Logger = {}));
+})(Logger || (Logger = {}));

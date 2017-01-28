@@ -19,46 +19,55 @@
 // File description: Object models for KentChat server
 
 /// <reference path="typings/index.d.ts" />
-/// <reference path="logging.ts" />
 
 import * as WebSocket from 'ws';
-import { sha3_256 } from 'js-sha3';
-import * as Crypto from 'crypto';
 import { Logger } from './logging';
 
+export enum ConnectionStatusCode {
+    UNINITIALIZED = 0,
+    KEY_EXCHANGE = 1,
+    ESTABLISHED = 2,
+    CLOSING = 3,
+}
+
 /**
- * User
+ * Describes a barebone connection object. This class is meant to be extended from.
  * 
- * Describes a client/user of KentChat
+ * The `User` class should extend from this one.
  */
-export class User {
-    public isLoggedIn: boolean = false;
-    public isEncrypted: boolean = false;
+export class Connection {
     public identifier: string;
-    public publicKey: string;
-    public hashedAccountUsername: string;
-    public connection: WebSocket.WebSocket;
+    public wsConn: WebSocket.WebSocket;
     
     /**
-     * User constructor
+     * Defines the status of the connection.
+     * Should be incremented at certain stages of establishing and closing down the connection.
      * 
-     * Constructs a new user with the specified public key. Such key is required for user construction. For more info, see protocol.md. Meant to be called during 'connection' event handling by the server.
+     * @default
+     * @since v0.0.1
+     * @type {ConnectionStatusCode}
      */
-    constructor(conn: WebSocket.WebSocket, pubkey: string) {
-        this.publicKey = pubkey;
-        this.connection = conn;
+    public statusCode: ConnectionStatusCode = ConnectionStatusCode.UNINITIALIZED;
+
+    /**
+     * Connection constructor
+     * 
+     * Constructs a new connection with the specified public key. Such key is required for user construction. For more info, see protocol.md. Meant to be called during the 'connection' event handler of the WebSocket server.
+     */
+    constructor(conn: WebSocket.WebSocket) {
+        this.wsConn = conn;
     }
 
     rawSend(data: any) {
         Logger.into(`[${this}].rawSend`);
-        if (this.connection.readyState === WebSocket.WebSocket.OPEN) {
-            this.connection.send(data, err => {
-                Logger.log('error', `Error while sending to connection; Stack:\n${err.stack}`);
+        if (this.wsConn.readyState === WebSocket.WebSocket.OPEN) {
+            this.wsConn.send(data, err => {
+                Logger.fail(err, 'Error while sending to WebSocket connection');
             });
         }
     }
 
     toString(): string {
-        return `User<pub-prefix=${this.publicKey.slice(0, 6)}>`;
+        return `User<ident=${this.identifier}>`;
     }
 }
