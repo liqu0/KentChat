@@ -1,29 +1,16 @@
-// Copyright (C) 2017  LiquidOxygen
+// Copyright (c) 2017 LiquidOxygen
 // 
-// This file is part of KentChat.
-// 
-// KentChat is free software: you can redistribute it and/or modify
-// it under the terms of the GNU General Public License as published by
-// the Free Software Foundation, either version 3 of the License, or
-// (at your option) any later version.
-// 
-// KentChat is distributed in the hope that it will be useful,
-// but WITHOUT ANY WARRANTY; without even the implied warranty of
-// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
-// GNU General Public License for more details.
-// 
-// You should have received a copy of the GNU General Public License
-// along with KentChat.  If not, see <http://www.gnu.org/licenses/>.
-// 
+// This software is released under the MIT License.
+// https://opensource.org/licenses/MIT
 
 // File description: Encryption utilities for KentChat Server
 
 /// <reference path="custom_typings/blake2js.d.ts" />
 
+
 import * as Crypto from 'crypto';
 import * as Blake2 from 'blake2js';
 import { Connection } from './models';
-
 
 
 /**
@@ -39,10 +26,10 @@ export class EncryptedConnection extends Connection {
     /**
      * The RSA public key of the client.
      * 
-     * @type {NodeRSA}
+     * @type {string}
      * @memberOf EncryptedConnection
      */
-    public publicKey: any;
+    public publicKey: string;
 }
 
 /**
@@ -129,15 +116,18 @@ export namespace Crypt {
      * @export
      * @param {string} content The actual content that is meant to be sent to the client. Should be encoded with `utf8`. Example: `{"type":"tunnel","orig":"e1fcba2d"}`
      * @param {EncryptedConnection} targetUser The EncryptedConnection to which this packet will be sent. This is required for encrypting the AES key.
-     * @param {NodeRSA} serverPriv The server's generated private key. This is required for generating the signature.
+     * @param {string} serverPriv The server's generated private key. This is required for generating the signature.
      * @returns {string} The three parts of the packet, concatenated with {@link PACKET_SEPARATOR}
      */
-    export function composePacket(content: string, targetUser: EncryptedConnection, serverPriv: any): string {
+    export function composePacket(content: string, targetUser: EncryptedConnection, serverPriv: string): string {
         // the order, specified in protocol.md, is: encrypted message, encrypted key, signature
         let aesKey = Crypto.randomBytes(AES_KEY_SIZE);
         let encryptedMessage: Buffer = aesEncrypt(content, aesKey);
-        let encryptedKey: Buffer = targetUser.publicKey.encrypt(aesKey, 'buffer', 'buffer');
-        let signature: Buffer = serverPriv.sign(blakeHash(Buffer.from(content)), 'buffer', 'buffer');
+        let encryptedKey: Buffer = Crypto.publicEncrypt(targetUser.publicKey, aesKey);
+        //let signature: Buffer = serverPriv.sign(blakeHash(Buffer.from(content)), 'buffer', 'buffer');
+        let signer = Crypto.createSign('RSA-SHA256');
+        signer.update(content);
+        let signature = signer.sign(serverPriv);
         return [encryptedMessage, encryptedKey, signature].map(val => val.toString('base64')).join(PACKET_SEPARATOR);
     }
 
@@ -145,16 +135,18 @@ export namespace Crypt {
      * Parses the received packet, splitting it into three parts and following the procedure at protocol.md#server-msg-from-client.
      * 
      * @export
-     * @param {string} contents
-     * @param {EncryptedConnection} sender
-     * @param {*} serverPriv
+     * @param {string} contents The contents of the packet; Should be 3 base64 strings joined by `PACKET_SEPARATOR`.
+     * @param {EncryptedConnection} sender The original sender of the packet. Needed for signature verification.
+     * @param {string} serverPriv The private key of the server. Needed for AES key decryption.
      * @returns {Array} The decrypted message and whether or not the signature is valid.
      */
-    export function parsePacket(contents: string, sender: EncryptedConnection, serverPriv: any): [string, boolean] {
-        let [encryptedMessage, encryptedKey, signature] = contents.split(PACKET_SEPARATOR);
-        let aesKey: Buffer = serverPriv.decrypt(encryptedKey, 'buffer');
-        let clearMessage = aesDecrypt(Buffer.from(encryptedMessage, 'base64'), aesKey);
-        let signatureValid = sender.publicKey.verify(blakeHash(Buffer.from(clearMessage)), signature, 'buffer', 'base64');
+    export function parsePacket(contents: string, sender: EncryptedConnection, serverPriv: string): [string, boolean] {
+        let [encryptedMessage, encryptedKey, signature]: Buffer[] = contents.split(PACKET_SEPARATOR).map(part => Buffer.from(part, 'base64'));
+        let aesKey = Crypto.privateDecrypt(serverPriv, encryptedKey);
+        let clearMessage = aesDecrypt(encryptedMessage, aesKey);
+        let verifier = Crypto.createVerify('RSA-SHA256');
+        verifier.update(clearMessage);
+        let signatureValid = verifier.verify(sender.publicKey, signature);
         return [clearMessage, signatureValid];
     }
 }
