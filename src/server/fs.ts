@@ -9,8 +9,13 @@
 /// <reference path="typings/index.d.ts" />
 /// <reference path="encrypt.ts" />
 import { Crypt } from './encrypt';
+import * as fs from 'fs';
 
 export class LocalFile {
     uri: string;
-    // TODO
+    map: Object;
+
+    writeToFile() {
+        fs.writeFileSync(this.uri, JSON.stringify(this.map));
+    }
 }
