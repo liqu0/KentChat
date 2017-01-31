@@ -9,7 +9,6 @@
 
 
 import * as Crypto from 'crypto';
-import * as Blake2 from 'blake2js';
 import { Connection } from './models';
 
 
@@ -90,21 +89,34 @@ export namespace Crypt {
     }
 
     /**
-     * Hashes the given Buffer using [BLAKE2](https://blake2.net).
+     * Signs the given data using RSA-SHA256. Uses `crypto` module from Node.
      * 
-     * Can optionally specify the sub-algorithm of BLAKE2 to use for the hashing.
-     * 'Algorithm to use can either be "blake2s", "blake2sp", "blake2b" or "blake2bp".'
-     * 
-     * @static
-     * @public
-     * @param {Buffer} data - The data that shall be hashed with BLAKE2
-     * @param {string} algorithm - One of `"blake2s"`, `"blake2sp"`, `"blake2b"` or `"blake2bp"`
-     * @returns {Buffer} The hash of the supplied data, wrapped in a Buffer
+     * @export
+     * @param {Buffer} data - The data that shall be signed
+     * @param {string} privateKey The private key used for the signature
+     * @returns {Buffer} The signature, wrapped in a Buffer
      */
-    export function blakeHash(data: Buffer, algorithm: Blake2.Blake2Algorithm = 'blake2s'): Buffer {
-        return Buffer.from(<string> Blake2.hash(algorithm, data, {}, 'hex'), 'hex');
+    export function sha256Sign(data: Buffer, privateKey: string): Buffer {
+        let signer = Crypto.createSign('RSA-SHA256');
+        signer.update(data);
+        return signer.sign(privateKey);
     }
 
+    /**
+     * Verifies the given signature with the given data and public key.
+     * 
+     * @export
+     * @param {Buffer} data Data originally used to sign, should be already decrypted
+     * @param {Buffer} signature Signature of the data
+     * @param {string} publicKey Private counterpart of this key was used to sign
+     * @returns {boolean} `true` if signature valid, `false` otherwise
+     */
+    export function sha256Verify(data: Buffer, signature: Buffer, publicKey: string): boolean {
+        let checker = Crypto.createVerify('RSA-SHA256');
+        checker.update(data);
+        return checker.verify(publicKey, signature);
+    }
+    
     // --- Protocol-specific gen and degen functions ---
 
     /**
@@ -124,10 +136,7 @@ export namespace Crypt {
         let aesKey = Crypto.randomBytes(AES_KEY_SIZE);
         let encryptedMessage: Buffer = aesEncrypt(content, aesKey);
         let encryptedKey: Buffer = Crypto.publicEncrypt(targetUser.publicKey, aesKey);
-        //let signature: Buffer = serverPriv.sign(blakeHash(Buffer.from(content)), 'buffer', 'buffer');
-        let signer = Crypto.createSign('RSA-SHA256');
-        signer.update(content);
-        let signature = signer.sign(serverPriv);
+        let signature = sha256Sign(Buffer.from(content), serverPriv);
         return [encryptedMessage, encryptedKey, signature].map(val => val.toString('base64')).join(PACKET_SEPARATOR);
     }
 
@@ -146,7 +155,7 @@ export namespace Crypt {
         let clearMessage = aesDecrypt(encryptedMessage, aesKey);
         let verifier = Crypto.createVerify('RSA-SHA256');
         verifier.update(clearMessage);
-        let signatureValid = verifier.verify(sender.publicKey, signature);
+        let signatureValid = sha256Verify(Buffer.from(clearMessage), signature, sender.publicKey);
         return [clearMessage, signatureValid];
     }
 }

@@ -1,0 +1,8 @@
+{
+  "resolution": "main",
+  "tree": {
+    "src": "https://raw.githubusercontent.com/DefinitelyTyped/DefinitelyTyped/f32c1c1fb2dba562b5dcb3d2d70d2857954cb5be/js-yaml/index.d.ts",
+    "raw": "registry:dt/js-yaml#3.5.2+20161220142525",
+    "typings": "https://raw.githubusercontent.com/DefinitelyTyped/DefinitelyTyped/f32c1c1fb2dba562b5dcb3d2d70d2857954cb5be/js-yaml/index.d.ts"
+  }
+}
