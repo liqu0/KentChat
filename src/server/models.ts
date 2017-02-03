@@ -1,5 +1,5 @@
 // Copyright (c) 2017 LiquidOxygen
-// 
+//
 // This software is released under the MIT License.
 // https://opensource.org/licenses/MIT
 
@@ -17,19 +17,41 @@ export enum ConnectionStatusCode {
     CLOSING = 3,
 }
 
+export interface IConnection {
+    send(data: any);
+    addMessageListener(listener: (evt: Buffer, self: IConnection) => any);
+}
+
+class EventHandler {
+    callable: (msg: Object) => any;
+    uid: number;
+
+    constructor(fn: (msg: Object) => any) {
+        this.uid = Math.floor(Math.random() * 20000);
+    }
+
+    call(msg: Object) {
+        Logger.into(`EventHandler#${this.uid}`);
+        this.callable(msg);
+        Logger.outOf();
+    }
+}
+
 /**
  * Describes a barebone connection object. This class is meant to be extended from.
- * 
+ *
  * The `User` class should extend from this one.
  */
-export class Connection {
+export class Connection implements IConnection {
+    public receiveHandlers: ((recvData: Buffer) => any)[];
     public identifier: string;
     public wsConn: WebSocket.WebSocket;
-    
+    public eventHandlers: {[evtName: string]: EventHandler[]};
+
     /**
      * Defines the status of the connection.
      * Should be incremented at certain stages of establishing and closing down the connection.
-     * 
+     *
      * @default
      * @since v0.0.1
      * @type {ConnectionStatusCode}
@@ -38,11 +60,12 @@ export class Connection {
 
     /**
      * Connection constructor
-     * 
+     *
      * Constructs a new connection with the specified public key. Such key is required for user construction. For more info, see protocol.md. Meant to be called during the 'connection' event handler of the WebSocket server.
      */
     constructor(conn: WebSocket.WebSocket) {
         this.wsConn = conn;
+        this.setOnMessage();
     }
 
     rawSend(data: any) {
@@ -52,6 +75,28 @@ export class Connection {
                 Logger.fail(err, 'Error while sending to WebSocket connection');
             });
         }
+    }
+
+    protected setOnMessage() {
+        this.wsConn.onmessage = (evt) => {
+            Logger.into(`[${this}].rawReceive`);
+            for (let handler of this.receiveHandlers) {
+                handler(Buffer.from(evt.data));
+            }
+            Logger.outOf();
+        };
+    }
+
+    protected unsetOnMessage() {
+        this.wsConn.onmessage = null;
+    }
+
+    send(data: any) {
+        this.rawSend(data);
+    }
+
+    addMessageListener(listener: (msg: Buffer, self: IConnection) => any, internalEventName: string = 'message'): void {
+        this.eventHandlers[internalEventName].push(new EventHandler(msg => listener(<Buffer> msg, this)));
     }
 
     toString(): string {
