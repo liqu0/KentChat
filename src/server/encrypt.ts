@@ -116,6 +116,19 @@ export namespace Crypt {
         checker.update(data);
         return checker.verify(publicKey, signature);
     }
+
+    /**
+     * Uses SHA256 to hash the provided data, then return the hash in a buffer.
+     * 
+     * @export
+     * @param {Buffer} data The data to hash.
+     * @returns {Buffer} The hash.
+     */
+    export function sha256Hash(data: Buffer): Buffer {
+        let hasher = Crypto.createHash('sha256');
+        hasher.update(data);
+        return hasher.digest();
+    }
     
     // --- Protocol-specific gen and degen functions ---
 

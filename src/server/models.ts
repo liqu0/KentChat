@@ -19,7 +19,7 @@ export enum ConnectionStatusCode {
 
 export interface IConnection {
     send(data: any);
-    addMessageListener(listener: (evt: Buffer, self: IConnection) => any);
+    addEventListener(listener: (evt: Buffer, self: IConnection) => any, type: string);
 }
 
 class EventHandler {
@@ -43,7 +43,6 @@ class EventHandler {
  * The `User` class should extend from this one.
  */
 export class Connection implements IConnection {
-    public receiveHandlers: ((recvData: Buffer) => any)[];
     public identifier: string;
     public wsConn: WebSocket.WebSocket;
     public eventHandlers: {[evtName: string]: EventHandler[]};
@@ -63,8 +62,9 @@ export class Connection implements IConnection {
      *
      * Constructs a new connection with the specified public key. Such key is required for user construction. For more info, see protocol.md. Meant to be called during the 'connection' event handler of the WebSocket server.
      */
-    constructor(conn: WebSocket.WebSocket) {
+    constructor(conn: WebSocket.WebSocket, id?: string) {
         this.wsConn = conn;
+        this.identifier = id;
         this.setOnMessage();
     }
 
@@ -78,10 +78,10 @@ export class Connection implements IConnection {
     }
 
     protected setOnMessage() {
-        this.wsConn.onmessage = (evt) => {
+        this.wsConn.onmessage = evt => {
             Logger.into(`[${this}].rawReceive`);
-            for (let handler of this.receiveHandlers) {
-                handler(Buffer.from(evt.data));
+            for (let handler of this.eventHandlers['message']) {
+                handler.call(Buffer.from(evt.data));
             }
             Logger.outOf();
         };
@@ -95,11 +95,17 @@ export class Connection implements IConnection {
         this.rawSend(data);
     }
 
-    addMessageListener(listener: (msg: Buffer, self: IConnection) => any, internalEventName: string = 'message'): void {
+    addEventListener(listener: ((msg: Buffer, self: IConnection) => any), internalEventName: string): void {
         this.eventHandlers[internalEventName].push(new EventHandler(msg => listener(<Buffer> msg, this)));
     }
 
+    addEventListeners(listeners: ((msg: Buffer, self: IConnection) => any)[], eventName: string): void {
+        for (let listener of listeners) {
+            this.addEventListener(listener, eventName);
+        }
+    }
+
     toString(): string {
-        return `User<ident=${this.identifier}>`;
+        return `Connection<ident=${this.identifier}>`;
     }
 }
