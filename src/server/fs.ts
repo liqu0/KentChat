@@ -13,9 +13,9 @@ import * as fs from 'fs';
 import { Logger } from './logging';
 import * as path from 'path';
 
-export class BasicFile {
+export class BasicFile<MT> {
     uri: string;
-    map: Object;
+    map: MT;
 
     constructor(location: string) {
         if (!fs.existsSync(location)) {
@@ -44,7 +44,7 @@ export class BasicFile {
     }
 }
 
-export class VirtualDirectory extends BasicFile {
+export class VirtualDirectory<MT> extends BasicFile<MT> {
     separator: string;
     
     constructor(loc: string, sep: string = '.') {

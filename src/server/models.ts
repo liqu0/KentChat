@@ -69,10 +69,9 @@ export class Connection implements IConnection {
     }
 
     rawSend(data: any) {
-        Logger.into(`[${this}].rawSend`);
         if (this.wsConn.readyState === WebSocket.WebSocket.OPEN) {
             this.wsConn.send(data, err => {
-                Logger.fail(err, 'Error while sending to WebSocket connection');
+                Logger.fail(err, 'rawSend: Error while sending to WebSocket connection');
             });
         }
     }
